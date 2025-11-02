@@ -1,0 +1,58 @@
+<%- include("layout", { body: `
+  <div class="container section">
+    <h2>Apply for the Scholarship</h2>
+    <p>Enter your details and verify your email to download the hall ticket.</p>
+
+    <form id="applyForm">
+      <div class="mb-3"><label>Name</label><input type="text" name="name" class="form-control" required></div>
+      <div class="mb-3"><label>Email</label><input type="email" name="email" class="form-control" required></div>
+      <div class="mb-3"><label>Phone</label><input type="text" name="phone" class="form-control" required></div>
+      <div class="mb-3"><label>College</label><input type="text" name="college" class="form-control" required></div>
+      <div class="mb-3"><label>Course</label><input type="text" name="course" class="form-control" required></div>
+      <button type="button" id="sendOtp" class="btn btn-primary">Send OTP</button>
+
+      <div id="otpSection" class="mt-4" style="display:none;">
+        <label>Enter OTP (Check your Email)</label>
+        <input type="text" id="otp" class="form-control mb-3">
+        <button type="button" id="verifyOtp" class="btn btn-success">Verify & Download Hall Ticket</button>
+      </div>
+    </form>
+
+    <div id="result" class="mt-4"></div>
+  </div>
+
+  <script>
+  document.getElementById("sendOtp").addEventListener("click", async () => {
+    const form = document.getElementById("applyForm");
+    const data = Object.fromEntries(new FormData(form));
+    const res = await fetch("/send-otp", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (result.success) {
+      document.getElementById("otpSection").style.display = "block";
+      document.getElementById("result").innerHTML = "<div class='alert alert-info'>OTP sent to your email.</div>";
+    } else {
+      document.getElementById("result").innerHTML = "<div class='alert alert-danger'>Failed to send OTP.</div>";
+    }
+  });
+
+  document.getElementById("verifyOtp").addEventListener("click", async () => {
+    const form = document.getElementById("applyForm");
+    const data = Object.fromEntries(new FormData(form));
+    data.otp = document.getElementById("otp").value;
+    const res = await fetch("/verify-otp", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (result.success) {
+      document.getElementById("result").innerHTML = "<div class='alert alert-success'>Verified! Downloading Hall Ticket...</div>";
+      window.location.href = result.link;
+    } else {
+      document.getElementById("result").innerHTML = "<div class='alert alert-danger'>Invalid OTP. Try again.</div>";
+    }
+  });
+  </script>
+` }) %>

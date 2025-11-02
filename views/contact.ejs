@@ -1,0 +1,36 @@
+<%- include("layout", { body: `
+<section class="container mt-5 mb-5">
+  <h2 class="text-center mb-4">Contact Us</h2>
+  <div class="row">
+    <div class="col-md-6">
+      <h5>Helpline</h5>
+      <p>
+        <b>Documount Scholarship Coordination Cell</b><br>
+        Documount Technologies Pvt Ltd<br>
+        Hyderabad, Telangana – 500072<br>
+        <b>Phone:</b> +91-9966653422<br>
+        <b>Email:</b> support@documounttech.in
+      </p>
+      <p>Office Hours: Monday to Saturday, 10 AM – 6 PM</p>
+    </div>
+    <div class="col-md-6">
+      <h5>Send Us a Message</h5>
+      <form action="mailto:support@documounttech.in" method="post" enctype="text/plain">
+        <div class="mb-3">
+          <label>Your Name</label>
+          <input type="text" name="name" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label>Email</label>
+          <input type="email" name="email" class="form-control" required>
+        </div>
+        <div class="mb-3">
+          <label>Message</label>
+          <textarea name="message" rows="4" class="form-control" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Send Message</button>
+      </form>
+    </div>
+  </div>
+</section>
+` }) %>
