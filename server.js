@@ -61,30 +61,30 @@ app.post(
               appData.paymentId = payment?.id;
 
               try {
-                // await transporter.sendMail({
-                //   from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
-                //   to: appData.email,
-                //   subject: "Hall Ticket - Documount Scholarship Program",
-                //   html: `
-                //     <div style="font-family: Arial, sans-serif; padding:20px;">
-                //       <h2 style="color:#28a745;">✅ Payment Successful!</h2>
-                //       <p>Dear <b>${appData.name}</b>,</p>
-                //       <p>Your payment has been confirmed. Your Hall Ticket ID is: <b>${hallTicketId}</b></p>
-                //       <p style="margin:20px 0;">
-                //         <a href="${
-                //           process.env.BASE_URL || "http://localhost:3000"
-                //         }${pdfUrl}" 
-                //            style="background:#003366;color:white;padding:12px 24px;text-decoration:none;display:inline-block;border-radius:5px;">
-                //           Download Hall Ticket
-                //         </a>
-                //       </p>
-                //       <p><b>Exam Details:</b><br>
-                //       Date: 10th December 2025<br>
-                //       Venue: Documount Training Centre, Hyderabad<br>
-                //       Reporting Time: 9:00 AM</p>
-                //       <p style="color:#777;font-size:12px;">Please bring a valid photo ID and this Hall Ticket to the examination center.</p>
-                //     </div>`,
-                // });
+                await transporter.sendMail({
+                  from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
+                  to: appData.email,
+                  subject: "Hall Ticket - Documount Scholarship Program",
+                  html: `
+                    <div style="font-family: Arial, sans-serif; padding:20px;">
+                      <h2 style="color:#28a745;">✅ Payment Successful!</h2>
+                      <p>Dear <b>${appData.name}</b>,</p>
+                      <p>Your payment has been confirmed. Your Hall Ticket ID is: <b>${hallTicketId}</b></p>
+                      <p style="margin:20px 0;">
+                        <a href="${
+                          process.env.BASE_URL || "http://localhost:3000"
+                        }${pdfUrl}" 
+                           style="background:#003366;color:white;padding:12px 24px;text-decoration:none;display:inline-block;border-radius:5px;">
+                          Download Hall Ticket
+                        </a>
+                      </p>
+                      <p><b>Exam Details:</b><br>
+                      Date: 10th December 2025<br>
+                      Venue: Documount Training Centre, Hyderabad<br>
+                      Reporting Time: 9:00 AM</p>
+                      <p style="color:#777;font-size:12px;">Please bring a valid photo ID and this Hall Ticket to the examination center.</p>
+                    </div>`,
+                });
                 console.log(`📧 Hall ticket email sent to ${appData.email}`);
               } catch (emailErr) {
                 console.error("❌ Email sending failed:", emailErr);
@@ -246,23 +246,23 @@ app.post("/send-otp", async (req, res) => {
   console.log(`✅ Generated OTP for ${email}: ${otp}`);
 
   try {
-    // await transporter.sendMail({
-    //   from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
-    //   to: email,
-    //   subject: "Email Verification - Documount Scholarship Program",
-    //   html: `
-    //     <div style="font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;">
-    //       <div style="max-width:600px;margin:auto;background:white;border-radius:8px;border:1px solid #ddd;padding:20px;">
-    //         <h2 style="color:#003366;text-align:center;">Documount Scholarship Verification</h2>
-    //         <p>Dear <b>${name || email}</b>,</p>
-    //         <p>Your One-Time Password (OTP) for email verification is:</p>
-    //         <div style="font-size:32px;font-weight:bold;color:#0066cc;text-align:center;padding:20px;background:#f0f8ff;border-radius:8px;margin:20px 0;">${otp}</div>
-    //         <p>This OTP will expire in 10 minutes. Please do not share it with anyone.</p>
-    //         <hr>
-    //         <p style="font-size:13px;color:#777;text-align:center;">Documount Technologies Pvt Ltd | Hyderabad, Telangana</p>
-    //       </div>
-    //     </div>`,
-    // });
+    await transporter.sendMail({
+      from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
+      to: email,
+      subject: "Email Verification - Documount Scholarship Program",
+      html: `
+        <div style="font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;">
+          <div style="max-width:600px;margin:auto;background:white;border-radius:8px;border:1px solid #ddd;padding:20px;">
+            <h2 style="color:#003366;text-align:center;">Documount Scholarship Verification</h2>
+            <p>Dear <b>${name || email}</b>,</p>
+            <p>Your One-Time Password (OTP) for email verification is:</p>
+            <div style="font-size:32px;font-weight:bold;color:#0066cc;text-align:center;padding:20px;background:#f0f8ff;border-radius:8px;margin:20px 0;">${otp}</div>
+            <p>This OTP will expire in 10 minutes. Please do not share it with anyone.</p>
+            <hr>
+            <p style="font-size:13px;color:#777;text-align:center;">Documount Technologies Pvt Ltd | Hyderabad, Telangana</p>
+          </div>
+        </div>`,
+    });
     console.log("✅ OTP email sent successfully");
     res.json({ success: true, message: "OTP sent to your email." });
   } catch (err) {
