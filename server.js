@@ -13,7 +13,7 @@ const app = express();
 app.set("view engine", "ejs");
 app.use(express.static("public"));
 
-// ⚠️ WEBHOOK ROUTE FIRST (before bodyParser)
+// ⚠️ Webhook route BEFORE body parsers
 app.post(
   "/razorpay-webhook",
   express.raw({ type: "application/json" }),
@@ -27,7 +27,6 @@ app.post(
         return res.status(400).send("Invalid webhook configuration");
       }
 
-      // Verify the signature
       const hmac = crypto.createHmac("sha256", webhook_secret);
       hmac.update(req.body);
       const generated_signature = hmac.digest("hex");
@@ -37,40 +36,30 @@ app.post(
         return res.status(400).send("Invalid signature");
       }
 
-      // Process the event
       const event = JSON.parse(req.body.toString());
       console.log("📩 Webhook Event:", event.event);
 
-      // Handle payment captured event
       if (
         event.event === "payment.captured" ||
         event.event === "payment_link.paid"
       ) {
         const payment = event.payload?.payment?.entity;
         const paymentLink = event.payload?.payment_link?.entity;
-
-        // Get hall_ticket_id from payment notes or payment_link notes
         let hallTicketId =
           payment?.notes?.hall_ticket_id || paymentLink?.notes?.hall_ticket_id;
-
-        console.log("Hall Ticket ID from webhook:", hallTicketId);
 
         if (hallTicketId) {
           const appData = pendingApplications[hallTicketId];
 
           if (appData && appData.status === "pending") {
-            console.log(`✅ Found pending application for ${hallTicketId}`);
-            console.log(`📄 Generating PDF...`);
-
+            console.log(`✅ Processing payment for ${hallTicketId}`);
             const pdfUrl = await generateHallTicket(appData, hallTicketId);
 
             if (pdfUrl) {
               appData.status = "paid";
               appData.pdfUrl = pdfUrl;
               appData.paymentId = payment?.id;
-              console.log(`✅ PDF generated at ${pdfUrl}`);
 
-              // Send email with PDF
               try {
                 await transporter.sendMail({
                   from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
@@ -82,7 +71,9 @@ app.post(
                       <p>Dear <b>${appData.name}</b>,</p>
                       <p>Your payment has been confirmed. Your Hall Ticket ID is: <b>${hallTicketId}</b></p>
                       <p style="margin:20px 0;">
-                        <a href="${process.env.BASE_URL}${pdfUrl}" 
+                        <a href="${
+                          process.env.BASE_URL || "http://localhost:3000"
+                        }${pdfUrl}" 
                            style="background:#003366;color:white;padding:12px 24px;text-decoration:none;display:inline-block;border-radius:5px;">
                           Download Hall Ticket
                         </a>
@@ -94,45 +85,42 @@ app.post(
                       <p style="color:#777;font-size:12px;">Please bring a valid photo ID and this Hall Ticket to the examination center.</p>
                     </div>`,
                 });
-                console.log(`📧 Email sent to ${appData.email}`);
+                console.log(`📧 Hall ticket email sent to ${appData.email}`);
               } catch (emailErr) {
                 console.error("❌ Email sending failed:", emailErr);
               }
-            } else {
-              console.error(`❌ PDF generation FAILED for ${hallTicketId}`);
             }
-          } else {
-            console.warn(`⚠️ No pending application found for ${hallTicketId}`);
           }
-        } else {
-          console.warn("⚠️ hall_ticket_id not found in webhook");
         }
       }
 
-      // Always respond 200
       res.json({ status: "ok" });
     } catch (err) {
-      console.error("❌ Webhook processing error:", err);
+      console.error("❌ Webhook Error:", err);
       res.status(500).send("Server error");
     }
   }
 );
 
-// NOW apply body parsers
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-// Initialize stores and config
 const otpStore = {};
 const pendingApplications = {};
 
-// Initialize Razorpay
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+// Initialize Razorpay (optional check)
+let razorpay = null;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+  razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+  console.log("✅ Razorpay initialized");
+} else {
+  console.warn("⚠️ Razorpay not configured - check environment variables");
+}
 
-// Function to generate the PDF
+// PDF Generation function
 async function generateHallTicket(appData, hallTicketId) {
   const filePath = path.join(
     __dirname,
@@ -143,21 +131,20 @@ async function generateHallTicket(appData, hallTicketId) {
   const fileUrl = `/halltickets/${hallTicketId}.pdf`;
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
-  const verificationUrl = `${process.env.BASE_URL}/verify-ticket/${hallTicketId}`;
+  const verificationUrl = `${
+    process.env.BASE_URL || "http://localhost:3000"
+  }/verify-ticket/${hallTicketId}`;
 
   try {
     const qrDataUrl = await QRCode.toDataURL(verificationUrl);
-
     const doc = new PDFDocument({ margin: 40 });
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
-    // Border
     doc
       .rect(20, 20, doc.page.width - 40, doc.page.height - 40)
       .stroke("#003366");
 
-    // Logo + Header
     if (fs.existsSync("public/images/logo.png")) {
       doc.image("public/images/logo.png", 50, 30, { width: 70 });
     }
@@ -174,14 +161,12 @@ async function generateHallTicket(appData, hallTicketId) {
         65
       );
 
-    // Title
     doc.moveDown(2);
     doc
       .fontSize(18)
       .fillColor("#000")
       .text("HALL TICKET", { align: "center", underline: true });
 
-    // Student Info
     doc.moveDown(2);
     doc.fontSize(12).fillColor("#000");
     doc.text(`Hall Ticket ID: ${hallTicketId}`);
@@ -191,7 +176,6 @@ async function generateHallTicket(appData, hallTicketId) {
     if (appData.college) doc.text(`College: ${appData.college}`);
     if (appData.course) doc.text(`Course: ${appData.course}`);
 
-    // Exam Details
     doc.moveDown();
     doc
       .fontSize(12)
@@ -203,12 +187,10 @@ async function generateHallTicket(appData, hallTicketId) {
     doc.text("Reporting Time: 9:00 AM");
     doc.text("Contact: +91-9966653422 | support@documounttech.in");
 
-    // QR Code
     doc.image(qrDataUrl, doc.page.width - 150, doc.page.height - 180, {
       width: 100,
     });
 
-    // Footer
     doc.moveDown(2);
     doc
       .fontSize(10)
@@ -231,25 +213,15 @@ async function generateHallTicket(appData, hallTicketId) {
   }
 }
 
-// Configure Gmail
+// Configure Gmail - REMOVED transporter.verify() to avoid timeout
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: process.env.SMTP_USER || "admin@entropydevelopers.in",
     pass: process.env.SMTP_PASS || "kzsvdnpuxtfxjsxf",
   },
-  // Add timeouts to avoid long hangs
   connectionTimeout: 10000,
   greetingTimeout: 10000,
-});
-
-// Test email connection on startup
-transporter.verify(function (error, success) {
-  if (error) {
-    console.error("❌ Email configuration error:", error);
-  } else {
-    console.log("✅ Email server is ready to send messages");
-  }
 });
 
 // Routes
@@ -259,7 +231,7 @@ app.get("/about", (req, res) => res.render("about"));
 app.get("/contact", (req, res) => res.render("contact"));
 app.get("/notices", (req, res) => res.render("notices"));
 
-// Send OTP to Email
+// Send OTP
 app.post("/send-otp", async (req, res) => {
   const { email, name } = req.body;
 
@@ -274,7 +246,7 @@ app.post("/send-otp", async (req, res) => {
   console.log(`✅ Generated OTP for ${email}: ${otp}`);
 
   try {
-    const info = await transporter.sendMail({
+    await transporter.sendMail({
       from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
       to: email,
       subject: "Email Verification - Documount Scholarship Program",
@@ -291,33 +263,18 @@ app.post("/send-otp", async (req, res) => {
           </div>
         </div>`,
     });
-
-    console.log("✅ Email sent successfully. Message ID:", info.messageId);
+    console.log("✅ OTP email sent successfully");
     res.json({ success: true, message: "OTP sent to your email." });
   } catch (err) {
-    console.error("❌ Email Error:", err.code || err.message || err);
-
-    // Provide user-friendly error messages based on error type
-    let userMessage = "Error sending OTP. Please try again.";
-
-    if (err.code === "ETIMEDOUT") {
-      userMessage =
-        "Email service timed out. Please check your connection and try again.";
-    } else if (err.code === "EAUTH") {
-      userMessage = "Email authentication failed. Please contact support.";
-      console.error("⚠️ Check SMTP_USER and SMTP_PASS in .env file");
-    } else if (err.responseCode === 550) {
-      userMessage = "Invalid email address. Please check and try again.";
-    }
-
+    console.error("❌ Email Error:", err.code || err.message);
     res.json({
       success: false,
-      message: userMessage,
+      message: "Error sending OTP. Please try again.",
     });
   }
 });
 
-// ✅ Verify OTP and Create Razorpay Payment Link
+// Verify OTP and Create Payment Link
 app.post("/verify-otp", async (req, res) => {
   const { name, email, phone, college, course, otp } = req.body;
   const storedOtp = otpStore[email];
@@ -325,9 +282,14 @@ app.post("/verify-otp", async (req, res) => {
   if (parseInt(otp) === storedOtp) {
     delete otpStore[email];
 
-    const hallTicketId = "HT" + Date.now().toString().slice(-6);
+    if (!razorpay) {
+      return res.json({
+        success: false,
+        message: "Payment system not configured. Please contact support.",
+      });
+    }
 
-    // Store the user's data temporarily
+    const hallTicketId = "HT" + Date.now().toString().slice(-6);
     pendingApplications[hallTicketId] = {
       name,
       email,
@@ -338,36 +300,27 @@ app.post("/verify-otp", async (req, res) => {
     };
 
     try {
-      // Create Razorpay Payment Link
       const paymentLink = await razorpay.paymentLink.create({
-        amount: 5000, // Amount in paise (₹50)
+        amount: 5000,
         currency: "INR",
         description: "Documount Scholarship Entrance Exam Fee",
-        customer: {
-          name: name,
-          email: email,
-          contact: phone,
-        },
-        notify: {
-          sms: true,
-          email: true,
-        },
+        customer: { name, email, contact: phone },
+        notify: { sms: true, email: true },
         reminder_enable: true,
-        notes: {
-          hall_ticket_id: hallTicketId,
-          college: college,
-          course: course,
-        },
-        // callback_url: `${process.env.BASE_URL}/payment-success?ticket_id=${hallTicketId}`,
-        // callback_method: "get",
+        notes: { hall_ticket_id: hallTicketId, college, course },
+        callback_url: `${
+          process.env.BASE_URL || "http://localhost:3000"
+        }/payment-success?ticket_id=${hallTicketId}`,
+        callback_method: "get",
       });
 
-      console.log("✅ Created Payment Link:", paymentLink.short_url);
+      console.log("✅ Payment Link Created:", paymentLink.short_url);
       console.log("✅ Hall Ticket ID saved:", hallTicketId);
+      console.log("✅ Callback URL:", paymentLink.callback_url);
 
       res.json({ success: true, paymentUrl: paymentLink.short_url });
     } catch (err) {
-      console.error("❌ Razorpay Payment Link Error:", err);
+      console.error("❌ Razorpay Error:", err);
       res.json({
         success: false,
         message: "Error creating payment link. Please try again.",
@@ -408,27 +361,18 @@ app.get("/verify-ticket/:id", (req, res) => {
 // Payment Success Page
 app.get("/payment-success", (req, res) => {
   const { ticket_id } = req.query;
-
-  if (!ticket_id) {
-    return res.status(400).send("Invalid request.");
-  }
+  if (!ticket_id) return res.status(400).send("Invalid request.");
 
   const appData = pendingApplications[ticket_id];
 
-  // Check if payment is confirmed and PDF is ready
   if (appData && appData.status === "paid" && appData.pdfUrl) {
     res.render("success", {
       name: appData.name,
       pdfUrl: appData.pdfUrl,
       hallTicketId: ticket_id,
     });
-
-    // Clean up the temporary data after 5 minutes
-    setTimeout(() => {
-      delete pendingApplications[ticket_id];
-    }, 5 * 60 * 1000);
+    setTimeout(() => delete pendingApplications[ticket_id], 5 * 60 * 1000);
   } else if (appData && appData.status === "pending") {
-    // Show processing message and auto-refresh
     res.send(
       `<html>
          <head>
