@@ -1,9 +1,21 @@
 <%- include("layout", { body: `
-  <div class="container text-center section">
+  <div class="container section text-center">
+    
     <div class="alert alert-success mt-5">
-      <h4>Thank you, <%= name %>!</h4>
-      <p>Your application has been received. Our team will contact you shortly.</p>
-      <a href="/" class="btn btn-outline-primary mt-3">Back to Home</a>
+      <h4>✅ Payment Successful!</h4>
     </div>
+
+    <h2 class="mt-4">Thank you, ${name}!</h2>
+    <p>Your payment has been confirmed and your Hall Ticket is generated.</p>
+    <p><b>Hall Ticket ID:</b> ${hallTicketId}</p>
+    
+    <a href="${pdfUrl}" class="btn btn-primary btn-lg mt-3" download>
+      📄 Download Your Hall Ticket (PDF)
+    </a>
+
+    <p class="mt-4 text-muted">A copy has also been sent to your email.</p>
+    
+    <a href="/" class="btn btn-outline-secondary mt-5">← Back to Home</a>
+
   </div>
 ` }) %>
