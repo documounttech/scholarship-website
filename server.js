@@ -12,9 +12,117 @@ const Razorpay = require("razorpay");
 const app = express();
 app.set("view engine", "ejs");
 app.use(express.static("public"));
+
+// ⚠️ WEBHOOK ROUTE FIRST (before bodyParser)
+app.post(
+  "/razorpay-webhook",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    try {
+      const signature = req.headers["x-razorpay-signature"];
+      const webhook_secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+      if (!signature || !webhook_secret) {
+        console.error("Webhook: missing signature or secret");
+        return res.status(400).send("Invalid webhook configuration");
+      }
+
+      // Verify the signature
+      const hmac = crypto.createHmac("sha256", webhook_secret);
+      hmac.update(req.body);
+      const generated_signature = hmac.digest("hex");
+
+      if (generated_signature !== signature) {
+        console.error("Webhook signature verification failed.");
+        return res.status(400).send("Invalid signature");
+      }
+
+      // Process the event
+      const event = JSON.parse(req.body.toString());
+      console.log("📩 Webhook Event:", event.event);
+
+      // Handle payment captured event
+      if (
+        event.event === "payment.captured" ||
+        event.event === "payment_link.paid"
+      ) {
+        const payment = event.payload?.payment?.entity;
+        const paymentLink = event.payload?.payment_link?.entity;
+
+        // Get hall_ticket_id from payment notes or payment_link notes
+        let hallTicketId =
+          payment?.notes?.hall_ticket_id || paymentLink?.notes?.hall_ticket_id;
+
+        console.log("Hall Ticket ID from webhook:", hallTicketId);
+
+        if (hallTicketId) {
+          const appData = pendingApplications[hallTicketId];
+
+          if (appData && appData.status === "pending") {
+            console.log(`✅ Found pending application for ${hallTicketId}`);
+            console.log(`📄 Generating PDF...`);
+
+            const pdfUrl = await generateHallTicket(appData, hallTicketId);
+
+            if (pdfUrl) {
+              appData.status = "paid";
+              appData.pdfUrl = pdfUrl;
+              appData.paymentId = payment?.id;
+              console.log(`✅ PDF generated at ${pdfUrl}`);
+
+              // Send email with PDF
+              try {
+                await transporter.sendMail({
+                  from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
+                  to: appData.email,
+                  subject: "Hall Ticket - Documount Scholarship Program",
+                  html: `
+                    <div style="font-family: Arial, sans-serif; padding:20px;">
+                      <h2 style="color:#28a745;">✅ Payment Successful!</h2>
+                      <p>Dear <b>${appData.name}</b>,</p>
+                      <p>Your payment has been confirmed. Your Hall Ticket ID is: <b>${hallTicketId}</b></p>
+                      <p style="margin:20px 0;">
+                        <a href="${process.env.BASE_URL}${pdfUrl}" 
+                           style="background:#003366;color:white;padding:12px 24px;text-decoration:none;display:inline-block;border-radius:5px;">
+                          Download Hall Ticket
+                        </a>
+                      </p>
+                      <p><b>Exam Details:</b><br>
+                      Date: 10th December 2025<br>
+                      Venue: Documount Training Centre, Hyderabad<br>
+                      Reporting Time: 9:00 AM</p>
+                      <p style="color:#777;font-size:12px;">Please bring a valid photo ID and this Hall Ticket to the examination center.</p>
+                    </div>`,
+                });
+                console.log(`📧 Email sent to ${appData.email}`);
+              } catch (emailErr) {
+                console.error("❌ Email sending failed:", emailErr);
+              }
+            } else {
+              console.error(`❌ PDF generation FAILED for ${hallTicketId}`);
+            }
+          } else {
+            console.warn(`⚠️ No pending application found for ${hallTicketId}`);
+          }
+        } else {
+          console.warn("⚠️ hall_ticket_id not found in webhook");
+        }
+      }
+
+      // Always respond 200
+      res.json({ status: "ok" });
+    } catch (err) {
+      console.error("❌ Webhook processing error:", err);
+      res.status(500).send("Server error");
+    }
+  }
+);
+
+// NOW apply body parsers
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
+// Initialize stores and config
 const otpStore = {};
 const pendingApplications = {};
 
@@ -127,9 +235,21 @@ async function generateHallTicket(appData, hallTicketId) {
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "admin@entropydevelopers.in",
-    pass: "kzsvdnpuxtfxjsxf",
+    user: process.env.SMTP_USER || "admin@entropydevelopers.in",
+    pass: process.env.SMTP_PASS || "kzsvdnpuxtfxjsxf",
   },
+  // Add timeouts to avoid long hangs
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+});
+
+// Test email connection on startup
+transporter.verify(function (error, success) {
+  if (error) {
+    console.error("❌ Email configuration error:", error);
+  } else {
+    console.log("✅ Email server is ready to send messages");
+  }
 });
 
 // Routes
@@ -141,12 +261,20 @@ app.get("/notices", (req, res) => res.render("notices"));
 
 // Send OTP to Email
 app.post("/send-otp", async (req, res) => {
-  const { email } = req.body;
+  const { email, name } = req.body;
+
+  console.log("📧 OTP Request received for:", email);
+
+  if (!email) {
+    return res.json({ success: false, message: "Email is required" });
+  }
+
   const otp = Math.floor(100000 + Math.random() * 900000);
   otpStore[email] = otp;
+  console.log(`✅ Generated OTP for ${email}: ${otp}`);
 
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
       to: email,
       subject: "Email Verification - Documount Scholarship Program",
@@ -154,21 +282,37 @@ app.post("/send-otp", async (req, res) => {
         <div style="font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;">
           <div style="max-width:600px;margin:auto;background:white;border-radius:8px;border:1px solid #ddd;padding:20px;">
             <h2 style="color:#003366;text-align:center;">Documount Scholarship Verification</h2>
-            <p>Dear <b>${email}</b>,</p>
+            <p>Dear <b>${name || email}</b>,</p>
             <p>Your One-Time Password (OTP) for email verification is:</p>
-            <div style="font-size:24px;font-weight:bold;color:#0066cc;text-align:center;">${otp}</div>
+            <div style="font-size:32px;font-weight:bold;color:#0066cc;text-align:center;padding:20px;background:#f0f8ff;border-radius:8px;margin:20px 0;">${otp}</div>
             <p>This OTP will expire in 10 minutes. Please do not share it with anyone.</p>
             <hr>
             <p style="font-size:13px;color:#777;text-align:center;">Documount Technologies Pvt Ltd | Hyderabad, Telangana</p>
           </div>
         </div>`,
     });
+
+    console.log("✅ Email sent successfully. Message ID:", info.messageId);
     res.json({ success: true, message: "OTP sent to your email." });
   } catch (err) {
-    console.error("Email Error:", err);
+    console.error("❌ Email Error:", err.code || err.message || err);
+
+    // Provide user-friendly error messages based on error type
+    let userMessage = "Error sending OTP. Please try again.";
+
+    if (err.code === "ETIMEDOUT") {
+      userMessage =
+        "Email service timed out. Please check your connection and try again.";
+    } else if (err.code === "EAUTH") {
+      userMessage = "Email authentication failed. Please contact support.";
+      console.error("⚠️ Check SMTP_USER and SMTP_PASS in .env file");
+    } else if (err.responseCode === 550) {
+      userMessage = "Invalid email address. Please check and try again.";
+    }
+
     res.json({
       success: false,
-      message: "Error sending OTP. Please check email settings.",
+      message: userMessage,
     });
   }
 });
@@ -260,111 +404,6 @@ app.get("/verify-ticket/:id", (req, res) => {
     </html>
   `);
 });
-
-// Razorpay Webhook Handler
-app.post(
-  "/razorpay-webhook",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
-    try {
-      const signature = req.headers["x-razorpay-signature"];
-      const webhook_secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-
-      if (!signature || !webhook_secret) {
-        console.error("Webhook: missing signature or secret");
-        return res.status(400).send("Invalid webhook configuration");
-      }
-
-      // Verify the signature
-      const hmac = crypto.createHmac("sha256", webhook_secret);
-      hmac.update(req.body);
-      const generated_signature = hmac.digest("hex");
-
-      if (generated_signature !== signature) {
-        console.error("Webhook signature verification failed.");
-        return res.status(400).send("Invalid signature");
-      }
-
-      // Process the event
-      const event = JSON.parse(req.body.toString());
-      console.log("📩 Webhook Event:", event.event);
-
-      // Handle payment captured event
-      if (
-        event.event === "payment.captured" ||
-        event.event === "payment_link.paid"
-      ) {
-        const payment = event.payload?.payment?.entity;
-        const paymentLink = event.payload?.payment_link?.entity;
-
-        // Get hall_ticket_id from payment notes or payment_link notes
-        let hallTicketId =
-          payment?.notes?.hall_ticket_id || paymentLink?.notes?.hall_ticket_id;
-
-        console.log("Hall Ticket ID from webhook:", hallTicketId);
-
-        if (hallTicketId) {
-          const appData = pendingApplications[hallTicketId];
-
-          if (appData && appData.status === "pending") {
-            console.log(`✅ Found pending application for ${hallTicketId}`);
-            console.log(`📄 Generating PDF...`);
-
-            const pdfUrl = await generateHallTicket(appData, hallTicketId);
-
-            if (pdfUrl) {
-              appData.status = "paid";
-              appData.pdfUrl = pdfUrl;
-              appData.paymentId = payment?.id;
-              console.log(`✅ PDF generated at ${pdfUrl}`);
-
-              // Send email with PDF
-              try {
-                await transporter.sendMail({
-                  from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
-                  to: appData.email,
-                  subject: "Hall Ticket - Documount Scholarship Program",
-                  html: `
-                    <div style="font-family: Arial, sans-serif; padding:20px;">
-                      <h2 style="color:#28a745;">✅ Payment Successful!</h2>
-                      <p>Dear <b>${appData.name}</b>,</p>
-                      <p>Your payment has been confirmed. Your Hall Ticket ID is: <b>${hallTicketId}</b></p>
-                      <p style="margin:20px 0;">
-                        <a href="${process.env.BASE_URL}${pdfUrl}" 
-                           style="background:#003366;color:white;padding:12px 24px;text-decoration:none;display:inline-block;border-radius:5px;">
-                          Download Hall Ticket
-                        </a>
-                      </p>
-                      <p><b>Exam Details:</b><br>
-                      Date: 10th December 2025<br>
-                      Venue: Documount Training Centre, Hyderabad<br>
-                      Reporting Time: 9:00 AM</p>
-                      <p style="color:#777;font-size:12px;">Please bring a valid photo ID and this Hall Ticket to the examination center.</p>
-                    </div>`,
-                });
-                console.log(`📧 Email sent to ${appData.email}`);
-              } catch (emailErr) {
-                console.error("❌ Email sending failed:", emailErr);
-              }
-            } else {
-              console.error(`❌ PDF generation FAILED for ${hallTicketId}`);
-            }
-          } else {
-            console.warn(`⚠️ No pending application found for ${hallTicketId}`);
-          }
-        } else {
-          console.warn("⚠️ hall_ticket_id not found in webhook");
-        }
-      }
-
-      // Always respond 200
-      res.json({ status: "ok" });
-    } catch (err) {
-      console.error("❌ Webhook processing error:", err);
-      res.status(500).send("Server error");
-    }
-  }
-);
 
 // Payment Success Page
 app.get("/payment-success", (req, res) => {
