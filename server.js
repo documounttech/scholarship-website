@@ -61,30 +61,30 @@ app.post(
               appData.paymentId = payment?.id;
 
               try {
-                await transporter.sendMail({
-                  from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
-                  to: appData.email,
-                  subject: "Hall Ticket - Documount Scholarship Program",
-                  html: `
-                    <div style="font-family: Arial, sans-serif; padding:20px;">
-                      <h2 style="color:#28a745;">✅ Payment Successful!</h2>
-                      <p>Dear <b>${appData.name}</b>,</p>
-                      <p>Your payment has been confirmed. Your Hall Ticket ID is: <b>${hallTicketId}</b></p>
-                      <p style="margin:20px 0;">
-                        <a href="${
-                          process.env.BASE_URL || "http://localhost:3000"
-                        }${pdfUrl}" 
-                           style="background:#003366;color:white;padding:12px 24px;text-decoration:none;display:inline-block;border-radius:5px;">
-                          Download Hall Ticket
-                        </a>
-                      </p>
-                      <p><b>Exam Details:</b><br>
-                      Date: 10th December 2025<br>
-                      Venue: Documount Training Centre, Hyderabad<br>
-                      Reporting Time: 9:00 AM</p>
-                      <p style="color:#777;font-size:12px;">Please bring a valid photo ID and this Hall Ticket to the examination center.</p>
-                    </div>`,
-                });
+                // await transporter.sendMail({
+                //   from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
+                //   to: appData.email,
+                //   subject: "Hall Ticket - Documount Scholarship Program",
+                //   html: `
+                //     <div style="font-family: Arial, sans-serif; padding:20px;">
+                //       <h2 style="color:#28a745;">✅ Payment Successful!</h2>
+                //       <p>Dear <b>${appData.name}</b>,</p>
+                //       <p>Your payment has been confirmed. Your Hall Ticket ID is: <b>${hallTicketId}</b></p>
+                //       <p style="margin:20px 0;">
+                //         <a href="${
+                //           process.env.BASE_URL || "http://localhost:3000"
+                //         }${pdfUrl}" 
+                //            style="background:#003366;color:white;padding:12px 24px;text-decoration:none;display:inline-block;border-radius:5px;">
+                //           Download Hall Ticket
+                //         </a>
+                //       </p>
+                //       <p><b>Exam Details:</b><br>
+                //       Date: 10th December 2025<br>
+                //       Venue: Documount Training Centre, Hyderabad<br>
+                //       Reporting Time: 9:00 AM</p>
+                //       <p style="color:#777;font-size:12px;">Please bring a valid photo ID and this Hall Ticket to the examination center.</p>
+                //     </div>`,
+                // });
                 console.log(`📧 Hall ticket email sent to ${appData.email}`);
               } catch (emailErr) {
                 console.error("❌ Email sending failed:", emailErr);
