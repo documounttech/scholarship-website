@@ -246,23 +246,23 @@ app.post("/send-otp", async (req, res) => {
   console.log(`✅ Generated OTP for ${email}: ${otp}`);
 
   try {
-    await transporter.sendMail({
-      from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
-      to: email,
-      subject: "Email Verification - Documount Scholarship Program",
-      html: `
-        <div style="font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;">
-          <div style="max-width:600px;margin:auto;background:white;border-radius:8px;border:1px solid #ddd;padding:20px;">
-            <h2 style="color:#003366;text-align:center;">Documount Scholarship Verification</h2>
-            <p>Dear <b>${name || email}</b>,</p>
-            <p>Your One-Time Password (OTP) for email verification is:</p>
-            <div style="font-size:32px;font-weight:bold;color:#0066cc;text-align:center;padding:20px;background:#f0f8ff;border-radius:8px;margin:20px 0;">${otp}</div>
-            <p>This OTP will expire in 10 minutes. Please do not share it with anyone.</p>
-            <hr>
-            <p style="font-size:13px;color:#777;text-align:center;">Documount Technologies Pvt Ltd | Hyderabad, Telangana</p>
-          </div>
-        </div>`,
-    });
+    // await transporter.sendMail({
+    //   from: '"Documount Scholarship Program" <admin@entropydevelopers.in>',
+    //   to: email,
+    //   subject: "Email Verification - Documount Scholarship Program",
+    //   html: `
+    //     <div style="font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;">
+    //       <div style="max-width:600px;margin:auto;background:white;border-radius:8px;border:1px solid #ddd;padding:20px;">
+    //         <h2 style="color:#003366;text-align:center;">Documount Scholarship Verification</h2>
+    //         <p>Dear <b>${name || email}</b>,</p>
+    //         <p>Your One-Time Password (OTP) for email verification is:</p>
+    //         <div style="font-size:32px;font-weight:bold;color:#0066cc;text-align:center;padding:20px;background:#f0f8ff;border-radius:8px;margin:20px 0;">${otp}</div>
+    //         <p>This OTP will expire in 10 minutes. Please do not share it with anyone.</p>
+    //         <hr>
+    //         <p style="font-size:13px;color:#777;text-align:center;">Documount Technologies Pvt Ltd | Hyderabad, Telangana</p>
+    //       </div>
+    //     </div>`,
+    // });
     console.log("✅ OTP email sent successfully");
     res.json({ success: true, message: "OTP sent to your email." });
   } catch (err) {
