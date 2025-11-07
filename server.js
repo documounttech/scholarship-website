@@ -8,10 +8,15 @@ const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
 const crypto = require("crypto");
 const Razorpay = require("razorpay");
+import multer from "multer";
 
 const app = express();
 app.set("view engine", "ejs");
 app.use(express.static("public"));
+
+
+
+const upload = multer({ storage });
 
 // ⚠️ Webhook route BEFORE body parsers
 app.post(
@@ -121,6 +126,7 @@ if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
 }
 
 // PDF Generation function
+// PDF Generation function
 async function generateHallTicket(appData, hallTicketId) {
   const filePath = path.join(
     __dirname,
@@ -141,10 +147,10 @@ async function generateHallTicket(appData, hallTicketId) {
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
-    doc
-      .rect(20, 20, doc.page.width - 40, doc.page.height - 40)
-      .stroke("#003366");
+    // Border
+    doc.rect(20, 20, doc.page.width - 40, doc.page.height - 40).stroke("#003366");
 
+    // Header and Logo
     if (fs.existsSync("public/images/logo.png")) {
       doc.image("public/images/logo.png", 50, 30, { width: 70 });
     }
@@ -161,36 +167,37 @@ async function generateHallTicket(appData, hallTicketId) {
         65
       );
 
+    // Title
     doc.moveDown(2);
     doc
       .fontSize(18)
       .fillColor("#000")
       .text("HALL TICKET", { align: "center", underline: true });
 
+    // Applicant Info
     doc.moveDown(2);
     doc.fontSize(12).fillColor("#000");
     doc.text(`Hall Ticket ID: ${hallTicketId}`);
     doc.text(`Name: ${appData.name}`);
     doc.text(`Email: ${appData.email}`);
     if (appData.phone) doc.text(`Phone: ${appData.phone}`);
+    if (appData.aadharNo) doc.text(`Aadhar No: ${appData.aadharNo}`);
     if (appData.college) doc.text(`College: ${appData.college}`);
     if (appData.course) doc.text(`Course: ${appData.course}`);
 
+    // Exam Details
     doc.moveDown();
-    doc
-      .fontSize(12)
-      .fillColor("#003366")
-      .text("Exam Details:", { underline: true });
+    doc.fontSize(12).fillColor("#003366").text("Exam Details:", { underline: true });
     doc.fillColor("#000");
     doc.text("Entrance Exam Date: 10th December 2025");
     doc.text("Venue: Documount Training Centre, Hyderabad");
     doc.text("Reporting Time: 9:00 AM");
     doc.text("Contact: +91-9966653422 | support@documounttech.in");
 
-    doc.image(qrDataUrl, doc.page.width - 150, doc.page.height - 180, {
-      width: 100,
-    });
+    // QR Code
+    doc.image(qrDataUrl, doc.page.width - 150, doc.page.height - 180, { width: 100 });
 
+    // Footer note before T&C
     doc.moveDown(2);
     doc
       .fontSize(10)
@@ -199,6 +206,48 @@ async function generateHallTicket(appData, hallTicketId) {
         "Please bring a valid photo ID and this Hall Ticket to the examination center.\n" +
           "This document is computer-generated and does not require a signature.",
         { align: "center" }
+      );
+
+    // Add a page for Terms & Conditions
+    doc.addPage();
+    doc.moveDown(1);
+    doc
+      .fontSize(16)
+      .fillColor("#003366")
+      .text("General Terms and Conditions", { align: "center", underline: true });
+
+    doc.moveDown(1);
+    doc.fontSize(11).fillColor("#000");
+    const terms = [
+      "1. Candidates must bring a printed copy of this Hall Ticket to the examination centre. Entry without the Hall Ticket and valid photo ID (Aadhar Card, Voter ID, PAN Card, Passport, etc.) will not be permitted.",
+      "2. The candidate’s photograph and signature on the Hall Ticket must match those on the ID proof presented at the exam centre.",
+      "3. Candidates must report at least 30 minutes before the commencement of the examination. Latecomers will not be allowed to enter after the exam starts.",
+      "4. Mobile phones, smartwatches, calculators, Bluetooth devices, papers, books, or any electronic gadgets are strictly prohibited inside the examination hall.",
+      "5. Candidates must bring their own blue/black ballpoint pen and other permitted items. Sharing of materials is not allowed.",
+      "6. Candidates should adhere to the prescribed dress code. Any violation may lead to disqualification or additional frisking.",
+      "7. Candidates must occupy the seat allotted to them and follow the invigilator’s instructions throughout the exam.",
+      "8. Any form of malpractice, impersonation, or misconduct during the examination will result in immediate disqualification and legal action.",
+      "9. The Hall Ticket must be preserved until the completion of the admission process or announcement of results. It may be required during counselling or document verification.",
+      "10. No re-test will be conducted for candidates who miss the examination due to any reason, including technical or personal issues.",
+      "11. Candidates must remain in the hall for the full duration of the exam and cannot leave before completion unless instructed by the invigilator.",
+      "12. Candidates must follow all health and safety protocols as per government guidelines.",
+      "13. In case of discrepancies in name, photograph, or other details, candidates must contact the exam authority immediately before the examination date.",
+      "14. The Exam Committee reserves the right to cancel candidature or disqualify any candidate found violating the rules or furnishing false information.",
+      "15. The result and further communication will be made through the official website or registered email only. Candidates are advised to regularly check updates."
+    ];
+
+    terms.forEach((term) => {
+      doc.moveDown(0.3);
+      doc.text(term, { align: "justify" });
+    });
+
+    doc.moveDown(1);
+    doc
+      .fontSize(10)
+      .fillColor("#555")
+      .text(
+        "For any clarifications, contact the Exam Coordination Office at support@documounttech.in or call +91-9966653422.",
+        { align: "center", width: 500 }
       );
 
     doc.end();
