@@ -17,6 +17,12 @@
       ><input type="text" name="phone" class="form-control" required />
     </div>
     <div class="mb-3">
+    <label for="aadhar" class="form-label">Aadhaar Number</label>
+    <input type="text" class="form-control" id="aadhar" name="aadhar" maxlength="12" pattern="\d{12}" required>
+  </div>
+
+  
+    <div class="mb-3">
       <label>College</label
       ><input type="text" name="college" class="form-control" required />
     </div>
@@ -24,6 +30,7 @@
       <label>Course</label
       ><input type="text" name="course" class="form-control" required />
     </div>
+    
     <button type="button" id="sendOtp" class="btn btn-primary">Send OTP</button>
 
     <div id="otpSection" class="mt-4" style="display: none">
