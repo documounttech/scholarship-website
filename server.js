@@ -301,7 +301,7 @@ app.post("/verify-otp", async (req, res) => {
 
     try {
       const paymentLink = await razorpay.paymentLink.create({
-        amount: 5000,
+        amount: 4900,
         currency: "INR",
         description: "Documount Scholarship Entrance Exam Fee",
         customer: { name, email, contact: phone },
