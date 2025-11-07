@@ -8,7 +8,7 @@ const PDFDocument = require("pdfkit");
 const QRCode = require("qrcode");
 const crypto = require("crypto");
 const Razorpay = require("razorpay");
-import multer from "multer";
+
 
 const app = express();
 app.set("view engine", "ejs");
